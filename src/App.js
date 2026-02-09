@@ -142,7 +142,7 @@ export default function FarmFlying() {
 
       // ALTITUDE
       if (keys.ArrowUp) altitudeFt = Math.min(altitudeFt + 25, 2000)
-      if (keys.ArrowDown) altitudeFt = Math.max(altitudeFt - 25, 200)
+      if (keys.ArrowDown) altitudeFt = Math.max(altitudeFt - 25, 2)
 
       // FORWARD MOTION
       position.x += Math.sin(heading) * speed * 0.02
