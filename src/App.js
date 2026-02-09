@@ -62,26 +62,15 @@ export default function FarmFlying() {
     }
 
     // ================= CATTLE =================
-    const cattle = []
+    const cattle = [];
     for (let i = 0; i < 40; i++) {
-      const cow = new THREE.Mesh(
-        new THREE.BoxGeometry(2, 1.5, 3),
-        new THREE.MeshStandardMaterial({ color: 0x8b4513 })
-      )
-      cow.position.set(
-        Math.random() * 400 - 200,
-        1.5,
-        Math.random() * 400 - 200
-      )
-      cow.rotation.y = Math.random() * Math.PI * 2
-      scene.add(cow)
-      cattle.push(cow)
+      cattle.push(createCattle(scene));
     }
 
     // ================= CLOUDS =================
     // CLOUDS - updated
     const clouds = []
-    const cloudCount = 50  // more clouds
+    const cloudCount = 40  // more clouds
 
     for (let i = 0; i < cloudCount; i++) {
       const cloud = new THREE.Group()
@@ -180,6 +169,9 @@ export default function FarmFlying() {
       const gz = Math.floor(position.z / tileSize)
 
       farmTiles.forEach(tile => {
+        const t = performance.now() * 0.001
+        farmTiles.forEach(tile => animateGrass(tile, t))
+
         const tx = Math.floor(tile.position.x / tileSize)
         const tz = Math.floor(tile.position.z / tileSize)
 
@@ -240,7 +232,7 @@ export default function FarmFlying() {
     }
   }, [])
 
-  // NEW FUNCTION: Create flight avatar
+ // NEW FUNCTION: Create flight avatar
   function createFlightAvatar(type = 'plane') {
     let avatar;
 
@@ -275,31 +267,117 @@ export default function FarmFlying() {
     return avatar;
   }
 
-   // NEW FUNCTION: Create cattle
+  function animateGrass(tile, time) {
+    const pos = tile.geometry.attributes.position;
+    const initialPos = tile.geometry.userData.initialPositions;
+    
+    // Store initial positions on first call
+    if (!initialPos) {
+      tile.geometry.userData.initialPositions = new Float32Array(pos.count * 3);
+      for (let i = 0; i < pos.count; i++) {
+        tile.geometry.userData.initialPositions[i * 3] = pos.getX(i);
+        tile.geometry.userData.initialPositions[i * 3 + 1] = pos.getY(i);
+        tile.geometry.userData.initialPositions[i * 3 + 2] = pos.getZ(i);
+      }
+    }
+    
+    const count = pos.count;
+    for (let i = 0; i < count; i++) {
+      const x = initialPos ? initialPos[i * 3] : pos.getX(i);
+      const z = initialPos ? initialPos[i * 3 + 2] : pos.getZ(i);
+      
+      // Gentle wave like wind blowing through grass
+      const wave1 = Math.sin(x * 0.3 + time * 0.5) * 0.15;
+      const wave2 = Math.cos(z * 0.2 + time * 0.3) * 0.1;
+      const randomSway = Math.sin((x + z) * 0.5 + time * 0.4) * 0.08;
+      
+      const newY = (initialPos ? initialPos[i * 3 + 1] : 0) + wave1 + wave2 + randomSway;
+      pos.setY(i, newY);
+    }
+    pos.needsUpdate = true;
+  }
+
+  // Realistic cattle
   function createCattle(scene) {
-    const body = new THREE.Mesh(new THREE.BoxGeometry(3, 2, 4), new THREE.MeshStandardMaterial({ color: 0x8b4513 }));
-    const head = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.2, 2), new THREE.MeshStandardMaterial({ color: 0x8b4513 }));
-    head.position.set(0, 0.5, 3);
-    body.add(head);
-    const legGeo = new THREE.CylinderGeometry(0.3, 0.3, 1.5);
+    const cattle = new THREE.Group();
+    
+    // Body - larger and more realistic proportions
+    const bodyGeo = new THREE.BoxGeometry(2, 1.8, 3.5);
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x5C4033 });
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.position.y = 1.5;
+    cattle.add(body);
+    
+    // Head - proper cattle head shape
+    const headGeo = new THREE.BoxGeometry(1.2, 1.4, 1.8);
+    const head = new THREE.Mesh(headGeo, new THREE.MeshStandardMaterial({ color: 0x6B4423 }));
+    head.position.set(0, 1.8, 2.3);
+    cattle.add(head);
+    
+    // Snout
+    const snoutGeo = new THREE.BoxGeometry(1, 0.6, 0.8);
+    const snout = new THREE.Mesh(snoutGeo, new THREE.MeshStandardMaterial({ color: 0xFFB6C1 }));
+    snout.position.set(0, 1.5, 3.2);
+    cattle.add(snout);
+    
+    // Ears
+    const earGeo = new THREE.BoxGeometry(0.6, 0.4, 0.2);
+    const earMat = new THREE.MeshStandardMaterial({ color: 0x6B4423 });
+    const leftEar = new THREE.Mesh(earGeo, earMat);
+    const rightEar = new THREE.Mesh(earGeo, earMat);
+    leftEar.position.set(-0.7, 2.3, 2.5);
+    rightEar.position.set(0.7, 2.3, 2.5);
+    leftEar.rotation.z = 0.5;
+    rightEar.rotation.z = -0.5;
+    cattle.add(leftEar);
+    cattle.add(rightEar);
+    
+    // Horns
+    const hornGeo = new THREE.ConeGeometry(0.15, 0.8, 8);
+    const hornMat = new THREE.MeshStandardMaterial({ color: 0xFFF8DC });
+    const leftHorn = new THREE.Mesh(hornGeo, hornMat);
+    const rightHorn = new THREE.Mesh(hornGeo, hornMat);
+    leftHorn.position.set(-0.5, 2.6, 2.3);
+    rightHorn.position.set(0.5, 2.6, 2.3);
+    leftHorn.rotation.z = -0.3;
+    rightHorn.rotation.z = 0.3;
+    cattle.add(leftHorn);
+    cattle.add(rightHorn);
+    
+    // Legs - proper proportions
+    const legGeo = new THREE.CylinderGeometry(0.25, 0.22, 1.8, 8);
     const legMat = new THREE.MeshStandardMaterial({ color: 0x654321 });
-    [[-1, -1, -1.5],[1, -1, -1.5],[-1, -1, 1.5],[1, -1, 1.5]].forEach((p)=>{
+    const legPositions = [
+      [-0.7, 0.9, -1.2],  // back left
+      [0.7, 0.9, -1.2],   // back right
+      [-0.7, 0.9, 1],     // front left
+      [0.7, 0.9, 1]       // front right
+    ];
+    legPositions.forEach(pos => {
       const leg = new THREE.Mesh(legGeo, legMat);
-      leg.position.set(...p);
-      body.add(leg);
+      leg.position.set(...pos);
+      cattle.add(leg);
     });
-    const hornGeo = new THREE.ConeGeometry(0.2, 0.5);
-    const hornMat = new THREE.MeshStandardMaterial({ color: 0xffffe0 });
-    const hornL = new THREE.Mesh(hornGeo, hornMat);
-    const hornR = new THREE.Mesh(hornGeo, hornMat);
-    hornL.position.set(-0.5, 1, 2.5);
-    hornR.position.set(0.5, 1, 2.5);
-    body.add(hornL); body.add(hornR);
-    body.position.set(Math.random() * 400 - 200, 1, Math.random() * 400 - 200);
-    body.rotation.y = Math.random() * Math.PI * 2;
-    body.castShadow = true;
-    scene.add(body);
-    return body;
+    
+    // Tail
+    const tailGeo = new THREE.CylinderGeometry(0.08, 0.05, 1.5, 6);
+    const tail = new THREE.Mesh(tailGeo, new THREE.MeshStandardMaterial({ color: 0x654321 }));
+    tail.position.set(0, 1.5, -2);
+    tail.rotation.x = 0.5;
+    cattle.add(tail);
+    
+    // Udder (for realism)
+    const udderGeo = new THREE.SphereGeometry(0.4, 8, 8);
+    const udder = new THREE.Mesh(udderGeo, new THREE.MeshStandardMaterial({ color: 0xFFB6C1 }));
+    udder.position.set(0, 0.7, -0.5);
+    udder.scale.set(1, 0.7, 0.8);
+    cattle.add(udder);
+    
+    cattle.position.set(Math.random() * 400 - 200, 0, Math.random() * 400 - 200);
+    cattle.rotation.y = Math.random() * Math.PI * 2;
+    cattle.castShadow = true;
+    scene.add(cattle);
+    return cattle;
   }
 
   return (
