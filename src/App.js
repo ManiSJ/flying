@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
+import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader";
 
 export default function FarmFlying() {
   const mountRef = useRef(null)
@@ -65,6 +66,12 @@ export default function FarmFlying() {
     const cattle = [];
     for (let i = 0; i < 40; i++) {
       cattle.push(createCattle(scene));
+    }
+
+    // ================= CATTLE =================
+    const house = [];
+    for (let i = 0; i < 40; i++) {
+      cattle.push(loadHouse(scene));
     }
 
     // ================= CLOUDS =================
@@ -193,6 +200,14 @@ export default function FarmFlying() {
         }
       })
 
+      // RESPAWN HOUSE
+      house.forEach(house => {
+        if (house.position.distanceTo(position) > 600) {
+          house.position.x = position.x + Math.random() * 400 - 300
+          house.position.z = position.z + Math.random() * 400 - 300
+        }
+      })
+
       // RESPAWN CLOUDS
       // clouds drift update
       clouds.forEach(cloud => {
@@ -231,6 +246,23 @@ export default function FarmFlying() {
       renderer.dispose()
     }
   }, [])
+
+  function loadHouse(scene){
+    const objLoader = new OBJLoader();
+    objLoader.load(
+      "/../assets/cottage_obj.obj",
+      (obj) => {
+        obj.position.set(100, 0, -100);
+        obj.scale.set(1, 1, 1);
+        obj.traverse((node) => {
+          if (node.isMesh) node.castShadow = true;
+        });
+        scene.add(obj);
+      },
+      undefined,
+      (error) => console.error("Error loading OBJ:", error)
+    );
+  }
 
  // NEW FUNCTION: Create flight avatar
   function createFlightAvatar(type = 'plane') {
