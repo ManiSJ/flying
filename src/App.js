@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader";
+import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader";
 
 export default function FarmFlying() {
   const mountRef = useRef(null)
@@ -68,10 +69,10 @@ export default function FarmFlying() {
       cattle.push(createCattle(scene));
     }
 
-    // ================= CATTLE =================
-    const house = [];
-    for (let i = 0; i < 40; i++) {
-      cattle.push(loadHouse(scene));
+    // ================= House =================
+    const houses = [];
+    for (let i = 0; i < 20; i++) {
+      loadHouse(scene, houses);
     }
 
     // ================= CLOUDS =================
@@ -201,7 +202,7 @@ export default function FarmFlying() {
       })
 
       // RESPAWN HOUSE
-      house.forEach(house => {
+      houses.forEach(house => {
         if (house.position.distanceTo(position) > 600) {
           house.position.x = position.x + Math.random() * 400 - 300
           house.position.z = position.z + Math.random() * 400 - 300
@@ -247,21 +248,39 @@ export default function FarmFlying() {
     }
   }, [])
 
-  function loadHouse(scene){
-    const objLoader = new OBJLoader();
-    objLoader.load(
-      "/../assets/cottage_obj.obj",
-      (obj) => {
-        obj.position.set(100, 0, -100);
-        obj.scale.set(1, 1, 1);
+  function loadHouse(scene, houses) {
+    const mtlLoader = new MTLLoader();
+    mtlLoader.setPath("/assets/Wooden-Watch-Tower/");
+
+    mtlLoader.load("wooden watch tower2.mtl", (materials) => {
+      materials.preload();
+
+      const objLoader = new OBJLoader();
+      objLoader.setMaterials(materials);
+      objLoader.setPath("/assets/Wooden-Watch-Tower/");
+
+      objLoader.load("wooden watch tower2.obj", (obj) => {
+        obj.position.set(
+          Math.random() * 400 - 300,
+          0,
+          Math.random() * 400 - 300
+        );
+
+        obj.rotation.y = Math.random() * Math.PI * 2;
+        obj.scale.set(5, 5, 5);
+
         obj.traverse((node) => {
-          if (node.isMesh) node.castShadow = true;
+          if (node.isMesh) {
+            node.castShadow = true;
+            node.material.side = THREE.DoubleSide;
+            node.material.needsUpdate = true;
+          }
         });
+
         scene.add(obj);
-      },
-      undefined,
-      (error) => console.error("Error loading OBJ:", error)
-    );
+        houses.push(obj);
+      });
+    });
   }
 
  // NEW FUNCTION: Create flight avatar
