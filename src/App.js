@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader";
 import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader";
 
 export default function FarmFlying() {
   const mountRef = useRef(null)
+  const houseTemplateRef = useRef(null);
   const [altitude, setAltitude] = useState(1000)
   const [speed] = useState(50)
 
@@ -37,8 +39,8 @@ export default function FarmFlying() {
     scene.add(sun)
 
     // ================= AIRCRAFT =================
-    const aircraft = createFlightAvatar('plane'); // options: 'plane', 'bird', 'kite'
-    scene.add(aircraft);
+    const aircraft = createFlightAvatar(scene, 'bird'); // options: 'plane', 'bird', 'kite'
+    scene.add(aircraft);    
 
     // ================= GROUND =================
     const tileSize = 200
@@ -71,12 +73,13 @@ export default function FarmFlying() {
 
     // ================= House =================
     const houses = [];
-    for (let i = 0; i < 20; i++) {
-      loadHouse(scene, houses);
-    }
+    loadHouse(() => {
+      for (let i = 0; i < 20; i++) {
+        spawnHouse(scene, houses);
+      }
+    });
 
     // ================= CLOUDS =================
-    // CLOUDS - updated
     const clouds = []
     const cloudCount = 40  // more clouds
 
@@ -135,6 +138,7 @@ export default function FarmFlying() {
     const position = new THREE.Vector3(0, altitudeFt / 300, 0)
 
     // ================= ANIMATE =================
+    let t = 0;
     const animate = () => {
       requestAnimationFrame(animate)
 
@@ -159,7 +163,7 @@ export default function FarmFlying() {
 
       // AIRCRAFT
       aircraft.position.copy(position)
-      aircraft.rotation.set(Math.PI / 2, heading, bank)
+      aircraft.rotation.set(Math.PI / 2, heading, bank) 
 
       // CAMERA (VISIBLE TURNING)
       const follow = 30
@@ -248,60 +252,55 @@ export default function FarmFlying() {
     }
   }, [])
 
-  function loadHouse(scene, houses) {
-    const mtlLoader = new MTLLoader();
-    mtlLoader.setPath("/assets/Wooden-Watch-Tower/");
-
-    mtlLoader.load("wooden watch tower2.mtl", (materials) => {
-      materials.preload();
-
-      const objLoader = new OBJLoader();
-      objLoader.setMaterials(materials);
-      objLoader.setPath("/assets/Wooden-Watch-Tower/");
-
-      objLoader.load("wooden watch tower2.obj", (obj) => {
-        obj.position.set(
-          Math.random() * 400 - 300,
-          0,
-          Math.random() * 400 - 300
-        );
-
-        obj.rotation.y = Math.random() * Math.PI * 2;
-        obj.scale.set(5, 5, 5);
-
-        obj.traverse((node) => {
-          if (node.isMesh) {
-            node.castShadow = true;
-            node.material.side = THREE.DoubleSide;
-            node.material.needsUpdate = true;
-          }
-        });
-
-        scene.add(obj);
-        houses.push(obj);
-      });
-    });
-  }
-
- // NEW FUNCTION: Create flight avatar
-  function createFlightAvatar(type = 'plane') {
+  function createFlightAvatar(scene, type = 'plane') {
     let avatar;
 
     if (type === 'bird') {
       avatar = new THREE.Group();
       const body = new THREE.Mesh(
-        new THREE.SphereGeometry(0.5, 8, 8),
+        new THREE.SphereGeometry(0.5, 10, 8),
         new THREE.MeshStandardMaterial({ color: 0xffaa00 })
       );
+      body.scale.z = 3;
       avatar.add(body);
 
-      const wing = new THREE.Mesh(
-        new THREE.BoxGeometry(1.5, 0.1, 0.5),
+      const beak = new THREE.Mesh(
+        new THREE.ConeGeometry(0.15, 0.4, 6),
+        new THREE.MeshStandardMaterial({ color: 0xff6600 })
+      );
+      beak.rotation.x = Math.PI / 2;
+      beak.position.z = 0.9;
+      avatar.add(beak);
+
+      const leftWingPivot = new THREE.Group();
+      leftWingPivot.position.set(-0.5, 0, 0);
+      avatar.add(leftWingPivot);
+
+      const leftWing = new THREE.Mesh(
+        new THREE.BoxGeometry(1.2, 0.05, 0.5),
         new THREE.MeshStandardMaterial({ color: 0xffaa00 })
       );
-      wing.position.y = 0;
-      avatar.add(wing);
+      leftWing.position.x = -0.6; // extend outward
+      leftWingPivot.add(leftWing);
+      
+      const rightWingPivot = new THREE.Group();
+      rightWingPivot.position.set(0.5, 0, 0);
+      avatar.add(rightWingPivot);
 
+      const rightWing = new THREE.Mesh(
+        new THREE.BoxGeometry(1.2, 0.05, 0.5),
+        new THREE.MeshStandardMaterial({ color: 0xffaa00 })
+      );
+      rightWing.position.x = 0.6;
+      rightWingPivot.add(rightWing);
+
+      const tail = new THREE.Mesh(
+        new THREE.ConeGeometry(0.2, 0.6, 6),
+        new THREE.MeshStandardMaterial({ color: 0xff8800 })
+      );
+      tail.rotation.x = -Math.PI / 2;
+      tail.position.z = -0.9;
+      avatar.add(tail);      
     } else if (type === 'kite') {
       avatar = new THREE.Mesh(
         new THREE.ConeGeometry(1, 2, 4),
@@ -348,7 +347,6 @@ export default function FarmFlying() {
     pos.needsUpdate = true;
   }
 
-  // Realistic cattle
   function createCattle(scene) {
     const cattle = new THREE.Group();
     
@@ -429,6 +427,53 @@ export default function FarmFlying() {
     cattle.castShadow = true;
     scene.add(cattle);
     return cattle;
+  }
+
+  function loadHouse(onReady) {
+    const mtlLoader = new MTLLoader();
+    mtlLoader.setPath("/assets/Wooden-Watch-Tower/");
+
+    mtlLoader.load("wooden watch tower2.mtl", (materials) => {
+      materials.preload();
+
+      const objLoader = new OBJLoader();
+      objLoader.setMaterials(materials);
+      objLoader.setPath("/assets/Wooden-Watch-Tower/");
+
+      objLoader.load("wooden watch tower2.obj", (obj) => {
+        obj.traverse((node) => {
+          if (node.isMesh) {
+            node.castShadow = true;
+            node.material.side = THREE.DoubleSide;
+          }
+        });
+
+        houseTemplateRef.current = obj;
+        onReady();
+      });
+    });
+  }
+
+  function spawnHouse(scene, houses) {
+    if (!houseTemplateRef.current) return;
+
+    const house = houseTemplateRef.current.clone(true);
+
+    house.position.set(
+      Math.random() * 400 - 300,
+      0,
+      Math.random() * 400 - 300
+    );
+
+    house.rotation.y = Math.random() * Math.PI * 2;
+    house.scale.set(2, 2, 2);
+
+    // freeze if static
+    house.updateMatrix();
+    house.matrixAutoUpdate = false;
+
+    scene.add(house);
+    houses.push(house);
   }
 
   return (
