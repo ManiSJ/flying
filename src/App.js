@@ -4,9 +4,11 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader";
 import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader";
 
-export default function FarmFlying() {
+export default function Flying() {
   const mountRef = useRef(null)
   const houseTemplateRef = useRef(null);
+  const cattleTemplateRef = useRef(null);
+  const cloudTemplateRef = useRef(null);
   const [altitude, setAltitude] = useState(1000)
   const [speed] = useState(50)
 
@@ -47,66 +49,91 @@ export default function FarmFlying() {
     const tilesPerSide = 4
     const farmTiles = []
 
+    // Create a simple grass texture
+    const canvas = document.createElement('canvas')
+    canvas.width = 256
+    canvas.height = 256
+    const ctx = canvas.getContext('2d')
+    ctx.fillStyle = '#1a4d2e'
+    ctx.fillRect(0, 0, 256, 256)
+
+    // Add grass blade details
+    for (let i = 0; i < 5000; i++) {
+      const x = Math.random() * 256
+      const y = Math.random() * 256
+      const h = Math.random() * 8 + 4
+      ctx.strokeStyle = `rgba(34, 87, 50, ${Math.random() * 0.6 + 0.4})`
+      ctx.lineWidth = Math.random() * 0.5 + 0.3
+      ctx.beginPath()
+      ctx.moveTo(x, y)
+      ctx.lineTo(x + Math.random() * 2 - 1, y + h)
+      ctx.stroke()
+    }
+
+    const grassTexture = new THREE.CanvasTexture(canvas)
+    grassTexture.magFilter = THREE.NearestFilter
+    grassTexture.minFilter = THREE.LinearMipmapLinearFilter
+    grassTexture.repeat.set(4, 4)
+    grassTexture.wrapS = THREE.RepeatWrapping
+    grassTexture.wrapT = THREE.RepeatWrapping
+
     for (let x = -tilesPerSide; x <= tilesPerSide; x++) {
       for (let z = -tilesPerSide; z <= tilesPerSide; z++) {
-        const color = new THREE.Color(0x2e8b57)
-        color.offsetHSL(0, 0, (Math.random() - 0.5) * 0.1)
-
         const tile = new THREE.Mesh(
-          new THREE.PlaneGeometry(tileSize, tileSize),
-          new THREE.MeshStandardMaterial({ color })
+          new THREE.PlaneGeometry(tileSize, tileSize, 16, 16),
+          new THREE.MeshStandardMaterial({ 
+            map: grassTexture,
+            roughness: 0.8,
+            metalness: 0
+          })
         )
 
         tile.rotation.x = -Math.PI / 2
         tile.position.set(x * tileSize, 0, z * tileSize)
         tile.receiveShadow = true
+        tile.castShadow = true
         scene.add(tile)
         farmTiles.push(tile)
       }
     }
 
     // ================= CATTLE =================
-    const cattle = [];
+    const cattles = [];
+    cattleTemplateRef.current = createCattle();
+
     for (let i = 0; i < 40; i++) {
-      cattle.push(createCattle(scene));
+      const cow = cattleTemplateRef.current.clone(true);
+      cow.position.set(Math.random() * 400 - 200, 0, Math.random() * 400 - 200);
+      cow.rotation.y = Math.random() * Math.PI * 2;
+      scene.add(cow);
+      cattles.push(cow);
     }
 
     // ================= House =================
     const houses = [];
+    let housesInitialized = false;
     loadHouse(() => {
-      for (let i = 0; i < 20; i++) {
-        spawnHouse(scene, houses);
+      if (!housesInitialized) {
+        for (let i = 0; i < 20; i++) {
+          spawnHouse(scene, houses);
+        }
+        housesInitialized = true;
       }
     });
 
     // ================= CLOUDS =================
     const clouds = []
     const cloudCount = 40  // more clouds
+    cloudTemplateRef.current = createCloud();
 
     for (let i = 0; i < cloudCount; i++) {
-      const cloud = new THREE.Group()
-      for (let j = 0; j < 5; j++) {
-        const puff = new THREE.Mesh(
-          new THREE.SphereGeometry(Math.random() * 4 + 3, 8, 8),
-          new THREE.MeshStandardMaterial({
-            color: 0xffffff,
-            transparent: true,
-            opacity: 0.9
-          })
-        )
-        puff.position.set(
-          Math.random() * 8 - 4,
-          Math.random() * 3,
-          Math.random() * 8 - 4
-        )
-        cloud.add(puff)
-      }
+      const cloud = cloudTemplateRef.current.clone(true);
       cloud.position.set(
         Math.random() * 600 - 300,
         Math.random() * 60 + 40,
         Math.random() * 600 - 300
       )
-      cloud.userData = { speedX: Math.random() * 0.1 - 0.05, speedZ: Math.random() * 0.1 - 0.05 } // drift
+      cloud.userData = { speedX: Math.random() * 0.1 - 0.05, speedZ: Math.random() * 0.1 - 0.05 }
       scene.add(cloud)
       clouds.push(cloud)
     }
@@ -138,7 +165,6 @@ export default function FarmFlying() {
     const position = new THREE.Vector3(0, altitudeFt / 300, 0)
 
     // ================= ANIMATE =================
-    let t = 0;
     const animate = () => {
       requestAnimationFrame(animate)
 
@@ -154,7 +180,7 @@ export default function FarmFlying() {
 
       // ALTITUDE
       if (keys.ArrowUp) altitudeFt = Math.min(altitudeFt + 25, 2000)
-      if (keys.ArrowDown) altitudeFt = Math.max(altitudeFt - 25, 2)
+      if (keys.ArrowDown) altitudeFt = Math.max(altitudeFt - 25, 20)
 
       // FORWARD MOTION
       position.x += Math.sin(heading) * speed * 0.02
@@ -197,32 +223,9 @@ export default function FarmFlying() {
           tile.position.z += tileSize * (tilesPerSide * 2 + 1)
       })
 
-      // RESPAWN CATTLE
-      cattle.forEach(cow => {
-        if (cow.position.distanceTo(position) > 600) {
-          cow.position.x = position.x + Math.random() * 400 - 200
-          cow.position.z = position.z + Math.random() * 400 - 200
-        }
-      })
-
-      // RESPAWN HOUSE
-      houses.forEach(house => {
-        if (house.position.distanceTo(position) > 600) {
-          house.position.x = position.x + Math.random() * 400 - 300
-          house.position.z = position.z + Math.random() * 400 - 300
-        }
-      })
-
-      // RESPAWN CLOUDS
-      // clouds drift update
-      clouds.forEach(cloud => {
-        cloud.position.x += cloud.userData.speedX
-        cloud.position.z += cloud.userData.speedZ
-        if (cloud.position.distanceTo(position) > 900) {
-          cloud.position.x = position.x + Math.random() * 600 - 300
-          cloud.position.z = position.z + Math.random() * 600 - 300
-        }
-      })
+      respawnCattle(cattles, position)
+      respawnHouses(housesInitialized,houses, position)
+      respawnClouds(clouds, position)
 
       setAltitude(Math.round(altitudeFt))
       renderer.render(scene, camera)
@@ -251,6 +254,44 @@ export default function FarmFlying() {
       renderer.dispose()
     }
   }, [])
+
+  function respawnCattle(cattles, position){
+    // RESPAWN CATTLE
+    cattles.forEach(cow => {
+      if (cow.position.distanceTo(position) > 350) {
+        cow.position.x = position.x + Math.random() * 400 - 200
+        cow.position.z = position.z + Math.random() * 400 - 200
+        cow.position.y = 0
+        cow.rotation.y = Math.random() * Math.PI * 2
+      }
+    })
+  }
+
+  function respawnHouses(housesInitialized, houses, position){
+    // RESPAWN HOUSE
+    if (housesInitialized){
+      houses.forEach(house => {
+        if (house.position.distanceTo(position) > 350) {
+          house.position.x = position.x + Math.random() * 400 - 300
+          house.position.z = position.z + Math.random() * 400 - 300
+          house.position.y = 0
+        }
+      })
+    } 
+  }
+
+  function respawnClouds(clouds, position){
+     // RESPAWN CLOUDS
+    // clouds drift update
+    clouds.forEach(cloud => {
+      cloud.position.x += cloud.userData.speedX
+      cloud.position.z += cloud.userData.speedZ
+      if (cloud.position.distanceTo(position) > 500) {
+        cloud.position.x = position.x + Math.random() * 600 - 300
+        cloud.position.z = position.z + Math.random() * 600 - 300
+      }
+    })
+  }
 
   function createFlightAvatar(scene, type = 'plane') {
     let avatar;
@@ -318,33 +359,31 @@ export default function FarmFlying() {
   }
 
   function animateGrass(tile, time) {
-    const pos = tile.geometry.attributes.position;
-    const initialPos = tile.geometry.userData.initialPositions;
-    
-    // Store initial positions on first call
-    if (!initialPos) {
-      tile.geometry.userData.initialPositions = new Float32Array(pos.count * 3);
-      for (let i = 0; i < pos.count; i++) {
-        tile.geometry.userData.initialPositions[i * 3] = pos.getX(i);
-        tile.geometry.userData.initialPositions[i * 3 + 1] = pos.getY(i);
-        tile.geometry.userData.initialPositions[i * 3 + 2] = pos.getZ(i);
-      }
+    // Simplified - just update material UVs for wind effect
+    if (tile.material.map) {
+      tile.material.map.offset.x += 0.0001
     }
-    
-    const count = pos.count;
-    for (let i = 0; i < count; i++) {
-      const x = initialPos ? initialPos[i * 3] : pos.getX(i);
-      const z = initialPos ? initialPos[i * 3 + 2] : pos.getZ(i);
-      
-      // Gentle wave like wind blowing through grass
-      const wave1 = Math.sin(x * 0.3 + time * 0.5) * 0.15;
-      const wave2 = Math.cos(z * 0.2 + time * 0.3) * 0.1;
-      const randomSway = Math.sin((x + z) * 0.5 + time * 0.4) * 0.08;
-      
-      const newY = (initialPos ? initialPos[i * 3 + 1] : 0) + wave1 + wave2 + randomSway;
-      pos.setY(i, newY);
+  }
+
+  function createCloud() {
+    const cloud = new THREE.Group()
+    for (let j = 0; j < 5; j++) {
+      const puff = new THREE.Mesh(
+        new THREE.SphereGeometry(Math.random() * 4 + 3, 8, 8),
+        new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.9
+        })
+      )
+      puff.position.set(
+        Math.random() * 8 - 4,
+        Math.random() * 3,
+        Math.random() * 8 - 4
+      )
+      cloud.add(puff)
     }
-    pos.needsUpdate = true;
+    return cloud
   }
 
   function createCattle(scene) {
@@ -422,10 +461,10 @@ export default function FarmFlying() {
     udder.scale.set(1, 0.7, 0.8);
     cattle.add(udder);
     
-    cattle.position.set(Math.random() * 400 - 200, 0, Math.random() * 400 - 200);
-    cattle.rotation.y = Math.random() * Math.PI * 2;
+    /* cattle.position.set(Math.random() * 400 - 200, 0, Math.random() * 400 - 200);
+    cattle.rotation.y = Math.random() * Math.PI * 2; */
     cattle.castShadow = true;
-    scene.add(cattle);
+    //scene.add(cattle);
     return cattle;
   }
 
