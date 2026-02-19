@@ -15,6 +15,10 @@ export default function Flying() {
   useEffect(() => {
     if (!mountRef.current) return
 
+    let cattles = [];
+    let houses = [];
+    let clouds = [];
+
     // ================= SCENE =================
     const scene = createScene()
     const camera = createCamera()
@@ -27,20 +31,9 @@ export default function Flying() {
     const groundData = createGround(scene)
     const { tileSize, tilesPerSide, farmTiles } = groundData
 
-    const cattles = createCattles(scene);
-
-    const houses = [];
-    let housesInitialized = false;
-    loadHouse(() => {
-      if (!housesInitialized) {
-        for (let i = 0; i < 20; i++) {
-          spawnHouse(scene, houses);
-        }
-        housesInitialized = true;
-      }
-    });
-    
-    const clouds = createClouds(scene);
+    createCattles(scene, cattles);
+    createHouses(scene, houses);
+    createClouds(scene, clouds);
 
     // ================= CONTROLS =================
     const keys = {}
@@ -128,7 +121,7 @@ export default function Flying() {
       })
 
       respawnCattle(cattles, position)
-      respawnHouses(housesInitialized, houses, position)
+      respawnHouses(houses, position)
       respawnClouds(clouds, position)
 
       setAltitude(Math.round(altitudeFt))
@@ -256,9 +249,8 @@ export default function Flying() {
     return { tileSize, tilesPerSide, farmTiles }
   }
 
-  function createCattles(scene){
+  function createCattles(scene, cattles){
     // ================= CATTLE =================
-    const cattles = [];
     cattleTemplateRef.current = createCattle();
 
     for (let i = 0; i < 40; i++) {
@@ -268,12 +260,18 @@ export default function Flying() {
       scene.add(cow);
       cattles.push(cow);
     }
-    return cattles;
   }
 
-  function createClouds(scene){
+  function createHouses(scene, houses){
+     loadHouse(() => {
+      for (let i = 0; i < 20; i++) {
+        spawnHouse(scene, houses);
+      }
+    });
+  }
+
+  function createClouds(scene, clouds){
     // ================= CLOUDS =================
-    const clouds = []
     const cloudCount = 40  // more clouds
     cloudTemplateRef.current = createCloud();
 
@@ -288,7 +286,6 @@ export default function Flying() {
       scene.add(cloud)
       clouds.push(cloud)
     }
-    return clouds
   }
 
   function respawnCattle(cattles, position){
@@ -303,9 +300,9 @@ export default function Flying() {
     })
   }
 
-  function respawnHouses(housesInitialized, houses, position){
+  function respawnHouses(houses, position){
     // RESPAWN HOUSE
-    if (housesInitialized){
+    if (houses.length > 0){
       houses.forEach(house => {
         if (house.position.distanceTo(position) > 350) {
           house.position.x = position.x + Math.random() * 400 - 300
