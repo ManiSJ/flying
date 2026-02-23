@@ -96,7 +96,7 @@ export default function Flying() {
 
       // AIRCRAFT
       aircraft.position.copy(position)
-      aircraft.rotation.set(Math.PI / 2, heading, bank)  
+      aircraft.rotation.set(-Math.PI / 2, heading, bank)  
 
       // CAMERA (VISIBLE TURNING)
       const follow = 30
@@ -276,12 +276,50 @@ export default function Flying() {
       a380.scale.set(0.001, 0.001, 0.001);  // adjust scale as needed
       a380.position.set(0, 0, 0);        // Ensure it's at origin
       aircraftGroup.add(a380);
-     // Fix inverted plane - rotate 180° on X axis
-      a380.rotation.x = Math.PI;  // Flip upside right
+      // Fix inverted plane - rotate 180° on X axis
+      //a380.rotation.x = Math.PI;  // Flip upside right
+      addAircraftAxisHelper(aircraftGroup);
       console.log("✓ Plane loaded and added to scene");
     });
 
     return aircraftGroup;  // Always return the group
+  }
+
+  function addAircraftAxisHelper(aircraft) {
+    const axisLength = 50;
+    
+    // X axis (red)
+    const xGeometry = new THREE.BufferGeometry();
+    xGeometry.setAttribute('position', new THREE.BufferAttribute(
+      new Float32Array([0, 0, 0, axisLength, 0, 0]), 3
+    ));
+    const xLine = new THREE.Line(
+      xGeometry,
+      new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 })
+    );
+    aircraft.add(xLine);
+    
+    // Y axis (green)
+    const yGeometry = new THREE.BufferGeometry();
+    yGeometry.setAttribute('position', new THREE.BufferAttribute(
+      new Float32Array([0, 0, 0, 0, axisLength, 0]), 3
+    ));
+    const yLine = new THREE.Line(
+      yGeometry,
+      new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 2 })
+    );
+    aircraft.add(yLine);
+    
+    // Z axis (blue)
+    const zGeometry = new THREE.BufferGeometry();
+    zGeometry.setAttribute('position', new THREE.BufferAttribute(
+      new Float32Array([0, 0, 0, 0, 0, axisLength]), 3
+    ));
+    const zLine = new THREE.Line(
+      zGeometry,
+      new THREE.LineBasicMaterial({ color: 0x0000ff, linewidth: 2 })
+    );
+    aircraft.add(zLine);
   }
 
   function createGround(scene){
