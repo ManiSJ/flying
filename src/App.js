@@ -22,6 +22,7 @@ export default function Flying() {
 
     // ================= SCENE =================
     const scene = createScene()
+    addAxisHelper(scene)
     const camera = createCamera()
     const clock = new THREE.Clock()
     const weather = initWeather(scene, camera)
@@ -95,7 +96,7 @@ export default function Flying() {
 
       // AIRCRAFT
       aircraft.position.copy(position)
-      aircraft.rotation.set(Math.PI / 2, heading, bank) 
+      aircraft.rotation.set(Math.PI / 2, heading, bank)  
 
       // CAMERA (VISIBLE TURNING)
       const follow = 30
@@ -165,6 +166,71 @@ export default function Flying() {
     }
   }, [])
 
+  function addAxisHelper(scene) {
+    
+    /* Red line = X axis (left-right)
+    Green line = Y axis (up-down)
+    Blue line = Z axis (forward-backward)  */
+
+    // Create axis lines
+    const axisLength = 100;
+    
+    // X axis (red)
+    const xGeometry = new THREE.BufferGeometry();
+    xGeometry.setAttribute('position', new THREE.BufferAttribute(
+      new Float32Array([0, 0, 0, axisLength, 0, 0]), 3
+    ));
+    const xLine = new THREE.Line(
+      xGeometry,
+      new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 3 })
+    );
+    scene.add(xLine);
+    
+    // Y axis (green)
+    const yGeometry = new THREE.BufferGeometry();
+    yGeometry.setAttribute('position', new THREE.BufferAttribute(
+      new Float32Array([0, 0, 0, 0, axisLength, 0]), 3
+    ));
+    const yLine = new THREE.Line(
+      yGeometry,
+      new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 3 })
+    );
+    scene.add(yLine);
+    
+    // Z axis (blue)
+    const zGeometry = new THREE.BufferGeometry();
+    zGeometry.setAttribute('position', new THREE.BufferAttribute(
+      new Float32Array([0, 0, 0, 0, 0, axisLength]), 3
+    ));
+    const zLine = new THREE.Line(
+      zGeometry,
+      new THREE.LineBasicMaterial({ color: 0x0000ff, linewidth: 3 })
+    );
+    scene.add(zLine);
+    
+    // Add labels (optional, using sprites or just text)
+    addAxisLabel(scene, axisLength, 0, 0, 'X', 0xff0000);
+    addAxisLabel(scene, 0, axisLength, 0, 'Y', 0x00ff00);
+    addAxisLabel(scene, 0, 0, axisLength, 'Z', 0x0000ff);
+  }
+
+  function addAxisLabel(scene, x, y, z, label, color) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
+    ctx.font = 'bold 48px Arial';
+    ctx.fillText(label, 16, 48);
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.SpriteMaterial({ map: texture });
+    const sprite = new THREE.Sprite(material);
+    sprite.position.set(x * 1.1, y * 1.1, z * 1.1);
+    sprite.scale.set(10, 10, 1);
+    scene.add(sprite);
+  }
+
   function createScene(){
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(0x87ceeb)
@@ -207,9 +273,11 @@ export default function Flying() {
     loadA380Plane(() => {
       if (!planeTemplateRef.current) return;
       const a380 = planeTemplateRef.current.clone(true);
-      a380.scale.set(5, 5, 5);  // adjust scale as needed
+      a380.scale.set(0.001, 0.001, 0.001);  // adjust scale as needed
       a380.position.set(0, 0, 0);        // Ensure it's at origin
       aircraftGroup.add(a380);
+     // Fix inverted plane - rotate 180° on X axis
+      a380.rotation.x = Math.PI;  // Flip upside right
       console.log("✓ Plane loaded and added to scene");
     });
 
@@ -397,7 +465,7 @@ export default function Flying() {
     music.loop = true
     music.volume = 0.45
 
-    const thunderSound = new Audio('/assets/sounds/soundreality-thunder-sound-375727.mp3')
+    const thunderSound = new Audio('/assets/sounds/soundreality-thunder-sound-375727l.mp3')
     thunderSound.volume = 0.9
 
     // autoplay policies: start on user gesture if needed
@@ -684,6 +752,7 @@ export default function Flying() {
     mtlLoader.setPath("/assets/A380/");
 
     mtlLoader.load("A380.mtl", (materials) => {
+      console.log("✓ A380 MTL loaded");
       materials.preload();
 
       const objLoader = new OBJLoader();
@@ -691,6 +760,7 @@ export default function Flying() {
       objLoader.setPath("/assets/A380/");
 
       objLoader.load("A380.obj", (obj) => {
+        console.log("✓ A380 OBJ loaded");
         obj.traverse((node) => {
           if (node.isMesh) {
             node.castShadow = true;
@@ -700,6 +770,12 @@ export default function Flying() {
 
         planeTemplateRef.current = obj;
         onReady();
+      },
+      (progress) => {
+        console.log("OBJ loading...", Math.round(progress.loaded / progress.total * 100) + "%");
+      },
+      (error) => {
+        console.error("✗ Failed to load A380.obj:", error);
       });
     });
   }
