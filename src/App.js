@@ -7,6 +7,7 @@ import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader";
 export default function Flying() {
   const mountRef = useRef(null)
   const houseTemplateRef = useRef(null);
+  const planeTemplateRef = useRef(null);
   const cattleTemplateRef = useRef(null);
   const cloudTemplateRef = useRef(null);
   const [altitude, setAltitude] = useState(1000)
@@ -22,6 +23,10 @@ export default function Flying() {
     // ================= SCENE =================
     const scene = createScene()
     const camera = createCamera()
+    const clock = new THREE.Clock()
+    const weather = initWeather(scene, camera)
+    // start music if allowed
+    //weather.music.play().catch(()=>{})
     const renderer = createRenderer()
     mountRef.current.appendChild(renderer.domElement)
 
@@ -65,6 +70,10 @@ export default function Flying() {
     const animate = () => {
       requestAnimationFrame(animate)
 
+      const dt = clock.getDelta()
+      updateRain(weather.rain, position, dt)
+      weather.update(dt, position)
+
       // TURN (FIXED DIRECTION)
       if (keys.ArrowLeft) heading -= 0.04
       if (keys.ArrowRight) heading += 0.04
@@ -103,10 +112,14 @@ export default function Flying() {
       const gx = Math.floor(position.x / tileSize)
       const gz = Math.floor(position.z / tileSize)
 
+      // Animate grass ONCE per frame
+      const t = performance.now() * 0.001
       farmTiles.forEach(tile => {
-        const t = performance.now() * 0.001
-        farmTiles.forEach(tile => animateGrass(tile, t))
+        animateGrass(tile, t)
+      })
 
+      // Then update tile positions
+      farmTiles.forEach(tile => {
         const tx = Math.floor(tile.position.x / tileSize)
         const tz = Math.floor(tile.position.z / tileSize)
 
@@ -186,10 +199,21 @@ export default function Flying() {
   }
 
   function addFlightAvatar(scene){
-    // ================= AIRCRAFT =================
-    const aircraft = createFlightAvatar(scene, 'bird'); // options: 'plane', 'bird', 'kite'
-    scene.add(aircraft);  
-    return aircraft;  
+    // Create an empty Group to hold the loaded plane
+    const aircraftGroup = new THREE.Group();
+    scene.add(aircraftGroup);
+
+    // Load and add plane when ready
+    loadA380Plane(() => {
+      if (!planeTemplateRef.current) return;
+      const a380 = planeTemplateRef.current.clone(true);
+      a380.scale.set(5, 5, 5);  // adjust scale as needed
+      a380.position.set(0, 0, 0);        // Ensure it's at origin
+      aircraftGroup.add(a380);
+      console.log("✓ Plane loaded and added to scene");
+    });
+
+    return aircraftGroup;  // Always return the group
   }
 
   function createGround(scene){
@@ -264,7 +288,7 @@ export default function Flying() {
 
   function createHouses(scene, houses){
      loadHouse(() => {
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 5; i++) {
         spawnHouse(scene, houses);
       }
     });
@@ -272,7 +296,7 @@ export default function Flying() {
 
   function createClouds(scene, clouds){
     // ================= CLOUDS =================
-    const cloudCount = 40  // more clouds
+    const cloudCount = 20  // more clouds
     cloudTemplateRef.current = createCloud();
 
     for (let i = 0; i < cloudCount; i++) {
@@ -286,6 +310,131 @@ export default function Flying() {
       scene.add(cloud)
       clouds.push(cloud)
     }
+  }
+
+  // Weather: rain particles + thunder flashes + audio
+  function createRain(scene, count = 1800, spread = 600) {
+    // create a small vertical streak texture for raindrops
+    const canvas = document.createElement('canvas')
+    canvas.width = 8
+    canvas.height = 32
+    const ctx = canvas.getContext('2d')
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height)
+    grad.addColorStop(0, 'rgba(255,255,255,0.95)')
+    grad.addColorStop(0.7, 'rgba(200,220,255,0.6)')
+    grad.addColorStop(1, 'rgba(200,220,255,0)')
+    ctx.fillStyle = grad
+    // draw narrow streak in center
+    ctx.fillRect(3, 0, 2, canvas.height)
+
+    const dropTex = new THREE.CanvasTexture(canvas)
+    dropTex.minFilter = THREE.LinearFilter
+    dropTex.magFilter = THREE.LinearFilter
+    dropTex.needsUpdate = true
+
+    const geometry = new THREE.BufferGeometry()
+    const positions = new Float32Array(count * 3)
+    const velocities = new Float32Array(count)
+
+    for (let i = 0; i < count; i++) {
+      positions[i * 3] = (Math.random() - 0.5) * spread
+      positions[i * 3 + 1] = Math.random() * 200 + 20
+      positions[i * 3 + 2] = (Math.random() - 0.5) * spread
+      velocities[i] = 150 + Math.random() * 200
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    const material = new THREE.PointsMaterial({
+      map: dropTex,
+      color: 0xbfdfff,
+      size: 6,               // <- increase this to make drops larger (try 6..12)
+      sizeAttenuation: true, // set false to keep constant screen size
+      transparent: true,
+      opacity: 0.75,
+      depthWrite: false
+    })
+
+    const points = new THREE.Points(geometry, material)
+    points.userData = { velocities, spread }
+    scene.add(points)
+    return points
+  }
+
+  function updateRain(rainPoints, cameraPos, dt) {
+    if (!rainPoints) return
+    const pos = rainPoints.geometry.attributes.position.array
+    const vel = rainPoints.userData.velocities
+    const spread = rainPoints.userData.spread
+    const count = vel.length
+
+    for (let i = 0; i < count; i++) {
+      const idx = i * 3 + 1
+      pos[idx] -= vel[i] * dt
+      // if below ground or far below camera, respawn above the camera
+      if (pos[idx] < 0 || pos[idx] < cameraPos.y - 60) {
+        pos[i * 3] = cameraPos.x + (Math.random() - 0.5) * spread
+        pos[idx] = cameraPos.y + 80 + Math.random() * 80
+        pos[i * 3 + 2] = cameraPos.z + (Math.random() - 0.5) * spread
+        vel[i] = 120 + Math.random() * 220
+      }
+    }
+    rainPoints.geometry.attributes.position.needsUpdate = true
+  }
+
+  function initWeather(scene, camera) {
+    // rain
+    const rain = createRain(scene, 3600, 1200)
+
+    // thunder light (off by default)
+    const thunderLight = new THREE.DirectionalLight(0xffffff, 0)
+    thunderLight.position.set(300, 400, 100)
+    thunderLight.castShadow = false
+    scene.add(thunderLight)
+
+    // audio (use relative paths in /public or /assets)
+    const music = new Audio('/assets/sounds/ambient_rain_loop.mp3')
+    music.loop = true
+    music.volume = 0.45
+
+    const thunderSound = new Audio('/assets/sounds/soundreality-thunder-sound-375727.mp3')
+    thunderSound.volume = 0.9
+
+    // autoplay policies: start on user gesture if needed
+    const tryStartAudio = () => {
+      if (music.paused) music.play().catch(()=>{})
+    }
+    window.addEventListener('pointerdown', tryStartAudio, { once: true })
+
+    // thunder timing state
+    let thunderTimer = Math.random() * 8 + 5
+    let flashTime = 0
+
+    function update(dt, cameraPos) {
+      // rain
+      updateRain(rain, cameraPos, dt)
+
+      // thunder scheduling
+      thunderTimer -= dt
+      if (thunderTimer <= 0) {
+        // stronger, longer flash
+        flashTime = 0.3 + Math.random() * 0.6          // longer visible flash
+        thunderLight.intensity = 12 + Math.random() * 12 // much brighter than before
+        thunderSound.currentTime = 0
+        thunderSound.play().catch(()=>{})
+        thunderTimer = Math.random() * 12 + 6
+      }
+
+      if (flashTime > 0) {
+        // slower decay so intensity remains higher briefly
+        const decayRate = 3.0  // smaller = slower decay; increase to reduce speed
+        thunderLight.intensity *= Math.max(0.1, 1 - dt * decayRate)
+        flashTime -= dt
+        if (flashTime <= 0) thunderLight.intensity = 0
+      }
+    }
+
+    return { rain, thunderLight, music, thunderSound, update }
   }
 
   function respawnCattle(cattles, position){
@@ -525,6 +674,31 @@ export default function Flying() {
         });
 
         houseTemplateRef.current = obj;
+        onReady();
+      });
+    });
+  }
+
+  function loadA380Plane(onReady){
+    const mtlLoader = new MTLLoader();
+    mtlLoader.setPath("/assets/A380/");
+
+    mtlLoader.load("A380.mtl", (materials) => {
+      materials.preload();
+
+      const objLoader = new OBJLoader();
+      objLoader.setMaterials(materials);
+      objLoader.setPath("/assets/A380/");
+
+      objLoader.load("A380.obj", (obj) => {
+        obj.traverse((node) => {
+          if (node.isMesh) {
+            node.castShadow = true;
+            node.material.side = THREE.DoubleSide;
+          }
+        });
+
+        planeTemplateRef.current = obj;
         onReady();
       });
     });
