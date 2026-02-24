@@ -61,6 +61,24 @@ export default function Flying() {
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
 
+    // ================= ZOOM CONTROL =================
+    let zoomDistance = 30;  // distance from aircraft
+    const zoomSpeed = 2;
+    const minZoom = 5;
+    const maxZoom = 100;
+
+    const handleWheel = (e) => {
+      e.preventDefault();
+      if (e.deltaY > 0) {
+        zoomDistance += zoomSpeed;
+      } else {
+        zoomDistance -= zoomSpeed;
+      }
+      zoomDistance = Math.max(minZoom, Math.min(maxZoom, zoomDistance));
+    };
+
+    window.addEventListener('wheel', handleWheel, { passive: false });
+
     // ================= FLIGHT STATE =================
     let heading = 0
     let altitudeFt = 1000
@@ -99,7 +117,7 @@ export default function Flying() {
       aircraft.rotation.set(-Math.PI / 2, heading, bank)  
 
       // CAMERA (VISIBLE TURNING)
-      const follow = 30
+      const follow = zoomDistance
       const side = Math.sin(bank) * 6
 
       camera.position.set(
@@ -158,7 +176,7 @@ export default function Flying() {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
       window.removeEventListener('resize', handleResize)
-
+      window.removeEventListener('wheel', handleWheel)
       if (renderer.domElement?.parentNode) {
         renderer.domElement.parentNode.removeChild(renderer.domElement)
       }
@@ -276,8 +294,6 @@ export default function Flying() {
       a380.scale.set(0.001, 0.001, 0.001);  // adjust scale as needed
       a380.position.set(0, 0, 0);        // Ensure it's at origin
       aircraftGroup.add(a380);
-      // Fix inverted plane - rotate 180° on X axis
-      //a380.rotation.x = Math.PI;  // Flip upside right
       addAircraftAxisHelper(aircraftGroup);
       console.log("✓ Plane loaded and added to scene");
     });
