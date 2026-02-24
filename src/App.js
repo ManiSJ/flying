@@ -32,7 +32,7 @@ export default function Flying() {
     mountRef.current.appendChild(renderer.domElement)
 
     addLighting(scene)
-    const aircraft = addFlightAvatar(scene)
+    const hotAirBalloon = addHotAirBalloon(scene)
 
     const groundData = createGround(scene)
     const { tileSize, tilesPerSide, farmTiles } = groundData
@@ -62,7 +62,7 @@ export default function Flying() {
     window.addEventListener('keyup', handleKeyUp)
 
     // ================= ZOOM CONTROL =================
-    let zoomDistance = 30;  // distance from aircraft
+    let zoomDistance = 30;  // distance from hotAirBalloon
     const zoomSpeed = 2;
     const minZoom = 5;
     const maxZoom = 100;
@@ -112,9 +112,9 @@ export default function Flying() {
       position.z -= Math.cos(heading) * speed * 0.02
       position.y = 10 + altitudeFt / 50
 
-      // AIRCRAFT
-      aircraft.position.copy(position)
-      aircraft.rotation.set(-Math.PI / 2, heading, bank)  
+      // hotAirBalloon
+      hotAirBalloon.position.copy(position)
+      hotAirBalloon.rotation.set(-Math.PI / 2, heading, bank)  
 
       // CAMERA (VISIBLE TURNING)
       const follow = zoomDistance
@@ -282,26 +282,26 @@ export default function Flying() {
     scene.add(sun)
   }
 
-  function addFlightAvatar(scene){
+  function addHotAirBalloon(scene){
     // Create an empty Group to hold the loaded plane
-    const aircraftGroup = new THREE.Group();
-    scene.add(aircraftGroup);
+    const hotAirBalloonGroup = new THREE.Group();
+    scene.add(hotAirBalloonGroup);
 
     // Load and add plane when ready
-    loadA380Plane(() => {
+    loadHotAirBalloon(() => {
       if (!planeTemplateRef.current) return;
-      const a380 = planeTemplateRef.current.clone(true);
-      a380.scale.set(0.001, 0.001, 0.001);  // adjust scale as needed
-      a380.position.set(0, 0, 0);        // Ensure it's at origin
-      aircraftGroup.add(a380);
-      addAircraftAxisHelper(aircraftGroup);
+      const hotAirBalloon = planeTemplateRef.current.clone(true);
+      hotAirBalloon.scale.set(0.001, 0.001, 0.001);  // adjust scale as needed
+      hotAirBalloon.position.set(0, 0, 0);        // Ensure it's at origin
+      hotAirBalloonGroup.add(hotAirBalloon);
+      addAircraftAxisHelper(hotAirBalloonGroup);
       console.log("✓ Plane loaded and added to scene");
     });
 
-    return aircraftGroup;  // Always return the group
+    return hotAirBalloonGroup;  // Always return the group
   }
 
-  function addAircraftAxisHelper(aircraft) {
+  function addAircraftAxisHelper(hotAirBalloon) {
     const axisLength = 50;
     
     // X axis (red)
@@ -313,7 +313,7 @@ export default function Flying() {
       xGeometry,
       new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 })
     );
-    aircraft.add(xLine);
+    hotAirBalloon.add(xLine);
     
     // Y axis (green)
     const yGeometry = new THREE.BufferGeometry();
@@ -324,7 +324,7 @@ export default function Flying() {
       yGeometry,
       new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 2 })
     );
-    aircraft.add(yLine);
+    hotAirBalloon.add(yLine);
     
     // Z axis (blue)
     const zGeometry = new THREE.BufferGeometry();
@@ -335,7 +335,7 @@ export default function Flying() {
       zGeometry,
       new THREE.LineBasicMaterial({ color: 0x0000ff, linewidth: 2 })
     );
-    aircraft.add(zLine);
+    hotAirBalloon.add(zLine);
   }
 
   function createGround(scene){
@@ -601,71 +601,6 @@ export default function Flying() {
     })
   }
 
-  function createFlightAvatar(scene, type = 'plane') {
-    let avatar;
-
-    if (type === 'bird') {
-      avatar = new THREE.Group();
-      const body = new THREE.Mesh(
-        new THREE.SphereGeometry(0.5, 10, 8),
-        new THREE.MeshStandardMaterial({ color: 0xffaa00 })
-      );
-      body.scale.z = 3;
-      avatar.add(body);
-
-      const beak = new THREE.Mesh(
-        new THREE.ConeGeometry(0.15, 0.4, 6),
-        new THREE.MeshStandardMaterial({ color: 0xff6600 })
-      );
-      beak.rotation.x = Math.PI / 2;
-      beak.position.z = 0.9;
-      avatar.add(beak);
-
-      const leftWingPivot = new THREE.Group();
-      leftWingPivot.position.set(-0.5, 0, 0);
-      avatar.add(leftWingPivot);
-
-      const leftWing = new THREE.Mesh(
-        new THREE.BoxGeometry(1.2, 0.05, 0.5),
-        new THREE.MeshStandardMaterial({ color: 0xffaa00 })
-      );
-      leftWing.position.x = -0.6; // extend outward
-      leftWingPivot.add(leftWing);
-      
-      const rightWingPivot = new THREE.Group();
-      rightWingPivot.position.set(0.5, 0, 0);
-      avatar.add(rightWingPivot);
-
-      const rightWing = new THREE.Mesh(
-        new THREE.BoxGeometry(1.2, 0.05, 0.5),
-        new THREE.MeshStandardMaterial({ color: 0xffaa00 })
-      );
-      rightWing.position.x = 0.6;
-      rightWingPivot.add(rightWing);
-
-      const tail = new THREE.Mesh(
-        new THREE.ConeGeometry(0.2, 0.6, 6),
-        new THREE.MeshStandardMaterial({ color: 0xff8800 })
-      );
-      tail.rotation.x = -Math.PI / 2;
-      tail.position.z = -0.9;
-      avatar.add(tail);      
-    } else if (type === 'kite') {
-      avatar = new THREE.Mesh(
-        new THREE.ConeGeometry(1, 2, 4),
-        new THREE.MeshStandardMaterial({ color: 0xff00ff })
-      );
-    } else { // default plane
-      avatar = new THREE.Mesh(
-        new THREE.ConeGeometry(1, 4, 8),
-        new THREE.MeshStandardMaterial({ color: 0xff3333 })
-      );
-      avatar.rotation.x = Math.PI / 2;
-    }
-
-    return avatar;
-  }
-
   function animateGrass(tile, time) {
     // Simplified - just update material UVs for wind effect
     if (tile.material.map) {
@@ -801,20 +736,19 @@ export default function Flying() {
     });
   }
 
-  function loadA380Plane(onReady){
+  function loadHotAirBalloon(onReady){
     const mtlLoader = new MTLLoader();
-    mtlLoader.setPath("/assets/A380/");
+    mtlLoader.setPath("/assets/Hot_air_balloon/");
 
-    mtlLoader.load("A380.mtl", (materials) => {
-      console.log("✓ A380 MTL loaded");
+    mtlLoader.load("11809_Hot_air_balloon_l2.mtl", (materials) => {
       materials.preload();
 
       const objLoader = new OBJLoader();
       objLoader.setMaterials(materials);
-      objLoader.setPath("/assets/A380/");
+      objLoader.setPath("/assets/Hot_air_balloon/");
 
-      objLoader.load("A380.obj", (obj) => {
-        console.log("✓ A380 OBJ loaded");
+      objLoader.load("11809_Hot_air_balloon_l2.obj", (obj) => {
+        console.log("✓ Hot air balloon OBJ loaded");
         obj.traverse((node) => {
           if (node.isMesh) {
             node.castShadow = true;
@@ -829,7 +763,7 @@ export default function Flying() {
         console.log("OBJ loading...", Math.round(progress.loaded / progress.total * 100) + "%");
       },
       (error) => {
-        console.error("✗ Failed to load A380.obj:", error);
+        console.error("✗ Failed to load hot air balloon.obj:", error);
       });
     });
   }
